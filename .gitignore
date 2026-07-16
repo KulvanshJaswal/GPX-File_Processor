@@ -32,7 +32,7 @@ build/
 ### VS Code ###
 .vscode/
 
-# Secrets / local config — this is the important one for you
+# Secrets / local config
 .env
 application-local.properties
 application-local.yml
