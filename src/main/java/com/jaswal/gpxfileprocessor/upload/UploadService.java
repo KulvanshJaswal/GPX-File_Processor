@@ -1,5 +1,7 @@
 package com.jaswal.gpxfileprocessor.upload;
 
+import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
+import com.jaswal.gpxfileprocessor.common.entity.JobStatus;
 import com.jaswal.gpxfileprocessor.common.exception.FileStorageException;
 import com.jaswal.gpxfileprocessor.common.exception.InvalidGpxFileException;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
@@ -47,7 +49,7 @@ public class UploadService {
     }
 
     public String saveToMinio(MultipartFile file) {
-        String objectName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String objectName = UUID.randomUUID().toString().substring(0,8) + "_" + file.getOriginalFilename();
 
         try(InputStream inputStream = file.getInputStream()){
             PutObjectArgs putObjectArgs = PutObjectArgs.builder()
@@ -63,5 +65,15 @@ public class UploadService {
         }
 
         return objectName;
+    }
+
+    public JobEntity createJob(String objectName) {
+
+        JobEntity job = new JobEntity();
+
+        job.setName(objectName);
+        job.setStatus(JobStatus.QUEUED);
+
+        return jobRepository.save(job);
     }
 }
