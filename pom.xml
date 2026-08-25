@@ -96,6 +96,11 @@
             <artifactId>okhttp-jvm</artifactId>
             <version>5.1.0</version>
         </dependency>
+        <dependency>
+            <groupId>io.jenetics</groupId>
+            <artifactId>jpx</artifactId>
+            <version>3.2.1</version>
+        </dependency>
     </dependencies>
 
     <build>

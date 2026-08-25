@@ -13,4 +13,5 @@ public interface JobRepository extends JpaRepository<JobEntity, Long> {
 
     List<JobEntity> findByStatus(JobStatus jobStatus);
 
+    JobEntity getJobEntityById(Long id);
 }
