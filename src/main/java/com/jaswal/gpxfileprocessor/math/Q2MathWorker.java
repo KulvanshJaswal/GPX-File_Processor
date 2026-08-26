@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import java.io.InputStream;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -74,6 +75,71 @@ public class Q2MathWorker {
         }
 
         return new DifficultyResult(tier, score);
+    }
+
+
+    private double[] toXY(WayPoint point, double referenceLatRadians) {
+        double lat = Math.toRadians(point.getLatitude().doubleValue());
+        double lon = Math.toRadians(point.getLongitude().doubleValue());
+        double x = EARTH_RADIUS_METERS * lon * Math.cos(referenceLatRadians);
+        double y = EARTH_RADIUS_METERS * lat;
+        return new double[]{x, y};
+    }
+
+    private double perpendicularDistance(WayPoint p, WayPoint lineStart, WayPoint lineEnd, double referenceLatRadians) {
+        double[] pointCord = toXY(p, referenceLatRadians);
+        double[] startCord = toXY(lineStart, referenceLatRadians);
+        double[] endCord = toXY(lineEnd, referenceLatRadians);
+
+        double x0 = pointCord[0];
+        double y0 = pointCord[1];
+
+        double x1 = startCord[0];
+        double y1 = startCord[1];
+
+        double x2 = endCord[0];
+        double y2 = endCord[1];
+
+        double numerator = Math.abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1);
+        double denominator = Math.sqrt(Math.pow(y2 - y1, 2) + Math.pow(x2 - x1, 2));
+
+        if (denominator == 0) {
+            // lineStart and lineEnd are the same point — fall back to straight-line distance
+            return Math.sqrt(Math.pow(x0 - x1, 2) + Math.pow(y0 - y1, 2));
+        }
+
+        return numerator / denominator;
+    }
+
+    private List<WayPoint> simplify(List<WayPoint> points, double toleranceMeters, double referenceLatRadians) {
+        if (points.size() < 3) {
+            return points;
+        }
+
+        WayPoint lineStart = points.get(0);
+        WayPoint lineEnd = points.get(points.size() - 1);
+
+        double maxDistance = 0.0;
+        int maxIndex = 0;
+
+        for (int i = 1; i < points.size() - 1; i++) {
+            double distance = perpendicularDistance(points.get(i), lineStart, lineEnd, referenceLatRadians);
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                maxIndex = i;
+            }
+        }
+
+        if (maxDistance > toleranceMeters) {
+            List<WayPoint> leftHalf = simplify(points.subList(0, maxIndex + 1), toleranceMeters, referenceLatRadians);
+            List<WayPoint> rightHalf = simplify(points.subList(maxIndex, points.size()), toleranceMeters, referenceLatRadians);
+
+            List<WayPoint> combined = new ArrayList<>(leftHalf.subList(0, leftHalf.size() - 1));
+            combined.addAll(rightHalf);
+            return combined;
+        } else {
+            return List.of(lineStart, lineEnd);
+        }
     }
 
     @RabbitListener(queues = RabbitMQConfig.Q2_QUEUE)
