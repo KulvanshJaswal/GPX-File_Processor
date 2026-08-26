@@ -1,6 +1,7 @@
 package com.jaswal.gpxfileprocessor.math;
 
 import com.jaswal.gpxfileprocessor.common.config.RabbitMQConfig;
+import com.jaswal.gpxfileprocessor.common.entity.Difficulty;
 import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.exception.FileStorageException;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
@@ -26,13 +27,12 @@ import java.util.Optional;
 public class Q2MathWorker {
 
     private static final double EARTH_RADIUS_METERS = 6371000.0;
+    public record DifficultyResult(Difficulty tier, double score) {}
 
     @Autowired
     private JobRepository jobRepository;
-
     @Autowired
     private MinioClient minioClient;
-
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
@@ -52,6 +52,28 @@ public class Q2MathWorker {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
         return EARTH_RADIUS_METERS * c;
+    }
+
+    private DifficultyResult calculateDifficulty(double elevationGainMeters, double distanceKm) {
+        double elevationGainFeet = elevationGainMeters * 3.28084;
+        double distanceMiles = distanceKm * 0.621371;
+
+        double score = Math.sqrt(elevationGainFeet * 2 * distanceMiles);
+
+        Difficulty tier;
+        if (score < 50) {
+            tier = Difficulty.EASIEST;
+        } else if (score < 100) {
+            tier = Difficulty.MODERATE;
+        } else if (score < 150) {
+            tier = Difficulty.MODERATELY_STRENUOUS;
+        } else if (score < 200) {
+            tier = Difficulty.STRENUOUS;
+        } else {
+            tier = Difficulty.VERY_STRENUOUS;
+        }
+
+        return new DifficultyResult(tier, score);
     }
 
     @RabbitListener(queues = RabbitMQConfig.Q2_QUEUE)
@@ -148,7 +170,9 @@ public class Q2MathWorker {
 
             double totalDistanceKm = totalDistanceMeters / 1000.0;
             double paceKmPerMinute = movingTime > 0 ? totalDistanceKm / movingTime : 0.0;
-            // paceKmPerMinute is computed but not persisted — no matching column/field yet
+
+            //Difficulty Calc
+            DifficultyResult difficulty = calculateDifficulty(elevationGain, totalDistanceKm);
 
             job.setDistanceKm(totalDistanceKm);
             job.setElevationGainM(elevationGain);
@@ -156,6 +180,9 @@ public class Q2MathWorker {
             job.setMaxElevationM(maxElevation);
             job.setMinElevationM(minElevation);
             job.setMovingTimeSeconds((int) Math.round(movingTime * 60));
+            job.setPaceKmPerMin(paceKmPerMinute);
+            job.setDifficulty(difficulty.tier());
+            job.setDifficultyScore(difficulty.score());
             job.setCalculationsComplete(true);
             jobRepository.save(job);
 

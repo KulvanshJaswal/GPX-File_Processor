@@ -75,6 +75,9 @@ public class JobEntity {
     @Column(name = "error_message")
     private String errorMessage;
 
+    @Column(name = "pace_km_per_min")
+    private Double paceKmPerMin;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
