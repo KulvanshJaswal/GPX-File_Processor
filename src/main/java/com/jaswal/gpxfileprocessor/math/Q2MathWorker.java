@@ -1,10 +1,14 @@
 package com.jaswal.gpxfileprocessor.math;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jaswal.gpxfileprocessor.common.config.RabbitMQConfig;
+import com.jaswal.gpxfileprocessor.common.entity.CompletionFlags;
 import com.jaswal.gpxfileprocessor.common.entity.Difficulty;
 import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
+import com.jaswal.gpxfileprocessor.common.entity.RouteEntity;
 import com.jaswal.gpxfileprocessor.common.exception.FileStorageException;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
+import com.jaswal.gpxfileprocessor.common.repository.RouteRepository;
 import io.jenetics.jpx.GPX;
 import io.jenetics.jpx.Track;
 import io.jenetics.jpx.TrackSegment;
@@ -28,10 +32,13 @@ import java.util.Optional;
 public class Q2MathWorker {
 
     private static final double EARTH_RADIUS_METERS = 6371000.0;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     public record DifficultyResult(Difficulty tier, double score) {}
 
     @Autowired
     private JobRepository jobRepository;
+    @Autowired
+    private RouteRepository routeRepository;
     @Autowired
     private MinioClient minioClient;
     @Autowired
@@ -240,17 +247,34 @@ public class Q2MathWorker {
             //Difficulty Calc
             DifficultyResult difficulty = calculateDifficulty(elevationGain, totalDistanceKm);
 
+            // RDP track simplification — 8 m tolerance, projected onto local flat plane
+            double referenceLatRadians = Math.toRadians(allPoints.get(0).getLatitude().doubleValue());
+            List<WayPoint> simplified = simplify(allPoints, 8.0, referenceLatRadians);
+            List<double[]> points2d = simplified.stream()
+                    .map(wp -> new double[]{wp.getLatitude().doubleValue(), wp.getLongitude().doubleValue()})
+                    .toList();
+            String simplifiedJson = OBJECT_MAPPER.writeValueAsString(points2d);
+            RouteEntity route = new RouteEntity();
+            route.setJob(job);
+            route.setSimplifiedTrackpoints(simplifiedJson);
+            routeRepository.save(route);
+
             job.setDistanceKm(totalDistanceKm);
             job.setElevationGainM(elevationGain);
             job.setElevationLossM(elevationLoss);
             job.setMaxElevationM(maxElevation);
             job.setMinElevationM(minElevation);
             job.setMovingTimeSeconds((int) Math.round(movingTime * 60));
+            job.setTotalTime((int) Math.round(totalTime * 60));
             job.setPaceKmPerMin(paceKmPerMinute);
             job.setDifficulty(difficulty.tier());
             job.setDifficultyScore(difficulty.score());
-            job.setCalculationsComplete(true);
             jobRepository.save(job);
+
+            CompletionFlags flags = jobRepository.markCalculationsCompleteAtomically(jobId);
+            if (flags.validationComplete() && flags.calculationsComplete() /* && flags.enrichmentComplete() — add next session */) {
+                System.out.println("Job " + jobId + ": Q2 won the completion race — all current stages done");
+            }
 
         } catch (Exception e) {
             throw new FileStorageException("Error processing GPX distance calculation for job: " + jobIdString, e);

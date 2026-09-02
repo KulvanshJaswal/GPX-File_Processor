@@ -1,6 +1,7 @@
 package com.jaswal.gpxfileprocessor.ingest;
 
 import com.jaswal.gpxfileprocessor.common.config.RabbitMQConfig;
+import com.jaswal.gpxfileprocessor.common.entity.CompletionFlags;
 import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.exception.FileStorageException;
 import com.jaswal.gpxfileprocessor.common.exception.InvalidGpxFileException;
@@ -60,8 +61,10 @@ public class Q1ValidationWorker {
                 throw new InvalidGpxFileException("GPX file contains no trackpoints");
             }
 
-            job.setValidationComplete(true);
-            jobRepository.save(job);
+            CompletionFlags flags = jobRepository.markValidationCompleteAtomically(jobId);
+            if (flags.validationComplete() && flags.calculationsComplete() /* && flags.enrichmentComplete() — add next session */) {
+                System.out.println("Job " + jobId + ": Q1 won the completion race — all current stages done");
+            }
 
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.MAIN_EXCHANGE,

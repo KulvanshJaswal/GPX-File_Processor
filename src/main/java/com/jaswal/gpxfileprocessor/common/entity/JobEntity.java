@@ -55,6 +55,9 @@ public class JobEntity {
     @Column(name = "moving_time_seconds")
     private Integer movingTimeSeconds;
 
+    @Column(name = "total_time_seconds")
+    private int totalTime;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty")
     private Difficulty difficulty;

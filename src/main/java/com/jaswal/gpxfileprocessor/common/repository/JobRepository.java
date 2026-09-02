@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface JobRepository extends JpaRepository<JobEntity, Long> {
+public interface JobRepository extends JpaRepository<JobEntity, Long>, JobRepositoryCustom {
 
     List<JobEntity> findByStatus(JobStatus jobStatus);
 
