@@ -12,6 +12,7 @@ public class RabbitMQConfig {
     public static final String INGEST_ROUTING_KEY = "job.ingest";
     public static final String SERVICE_ROUTING_KEY = "job.service.ready";
     public static final String Q2_QUEUE = "q2.math.queue";
+    public static final String Q3_QUEUE = "q3.enrichment.queue";
     public static final String SERVICE_BINDING_PATTERN = "job.service.*";
 
     @Bean
@@ -37,5 +38,15 @@ public class RabbitMQConfig {
     @Bean
     public Binding q2Binding() {
         return BindingBuilder.bind(q2Queue()).to(mainExchange()).with(SERVICE_BINDING_PATTERN);
+    }
+
+    @Bean
+    public Queue q3Queue() {
+        return new Queue(Q3_QUEUE);
+    }
+
+    @Bean
+    public Binding q3Binding() {
+        return BindingBuilder.bind(q3Queue()).to(mainExchange()).with(SERVICE_BINDING_PATTERN);
     }
 }

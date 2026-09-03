@@ -12,12 +12,6 @@ public class JobRepositoryCustomImpl implements JobRepositoryCustom {
 
     @Override
     @Transactional
-    public CompletionFlags markValidationCompleteAtomically(Long id) {
-        return atomicFlagUpdate("validation_complete", id);
-    }
-
-    @Override
-    @Transactional
     public CompletionFlags markCalculationsCompleteAtomically(Long id) {
         return atomicFlagUpdate("calculations_complete", id);
     }
@@ -28,7 +22,7 @@ public class JobRepositoryCustomImpl implements JobRepositoryCustom {
         return atomicFlagUpdate("enrichment_complete", id);
     }
 
-    // column is always a hardcoded literal from the three methods above — not user input
+    // column is always a hardcoded literal from the methods above — not user input
     private CompletionFlags atomicFlagUpdate(String column, Long id) {
         Object[] row = (Object[]) em.createNativeQuery(
                 "UPDATE jobs SET " + column + " = true WHERE id = :id " +

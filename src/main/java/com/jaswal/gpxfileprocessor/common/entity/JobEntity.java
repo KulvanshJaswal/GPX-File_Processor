@@ -37,6 +37,12 @@ public class JobEntity {
     @Column(name = "enrichment_complete", nullable = false, columnDefinition = "boolean default false")
     private Boolean enrichmentComplete;
 
+    @Column(name = "start_lat")
+    private double startLat;
+
+    @Column(name = "start_lon")
+    private double startLon;
+
     @Column(name = "distance_km")
     private Double distanceKm;
 

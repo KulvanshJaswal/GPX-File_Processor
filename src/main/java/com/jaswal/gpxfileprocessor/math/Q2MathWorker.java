@@ -272,7 +272,7 @@ public class Q2MathWorker {
             jobRepository.save(job);
 
             CompletionFlags flags = jobRepository.markCalculationsCompleteAtomically(jobId);
-            if (flags.validationComplete() && flags.calculationsComplete() /* && flags.enrichmentComplete() — add next session */) {
+            if (flags.validationComplete() && flags.calculationsComplete() && flags.enrichmentComplete()) {
                 System.out.println("Job " + jobId + ": Q2 won the completion race — all current stages done");
             }
 
