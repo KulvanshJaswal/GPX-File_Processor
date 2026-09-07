@@ -14,6 +14,7 @@ import io.jenetics.jpx.WayPoint;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,9 @@ public class Q3EnrichmentWorker {
 
     @Autowired
     private RestClient.Builder restClientBuilder;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     @Autowired
     private MinioClient minioClient;
@@ -73,7 +77,11 @@ public class Q3EnrichmentWorker {
 
             CompletionFlags flags = jobRepository.markEnrichmentCompleteAtomically(jobId);
             if (flags.validationComplete() && flags.calculationsComplete() && flags.enrichmentComplete()) {
-                System.out.println("Job " + jobId + ": Q3 won the completion race — all stages done");
+                rabbitTemplate.convertAndSend(
+                        RabbitMQConfig.GENERATOR_EXCHANGE,
+                        RabbitMQConfig.GENERATOR_ROUTING_KEY,
+                        jobIdString
+                );
             }
 
         } catch (Exception e) {

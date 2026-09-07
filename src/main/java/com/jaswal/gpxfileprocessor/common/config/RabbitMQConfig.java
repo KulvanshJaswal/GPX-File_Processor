@@ -14,6 +14,9 @@ public class RabbitMQConfig {
     public static final String Q2_QUEUE = "q2.math.queue";
     public static final String Q3_QUEUE = "q3.enrichment.queue";
     public static final String SERVICE_BINDING_PATTERN = "job.service.*";
+    public static final String GENERATOR_EXCHANGE = "generator.exchange";
+    public static final String Q4_QUEUE = "q4.generator.queue";
+    public static final String GENERATOR_ROUTING_KEY = "job.generator";
 
     @Bean
     public TopicExchange mainExchange() {
@@ -48,5 +51,20 @@ public class RabbitMQConfig {
     @Bean
     public Binding q3Binding() {
         return BindingBuilder.bind(q3Queue()).to(mainExchange()).with(SERVICE_BINDING_PATTERN);
+    }
+
+    @Bean
+    public DirectExchange generatorExchange() {
+        return new DirectExchange(GENERATOR_EXCHANGE);
+    }
+
+    @Bean
+    public Queue q4Queue() {
+        return new Queue(Q4_QUEUE);
+    }
+
+    @Bean
+    public Binding q4Binding() {
+        return BindingBuilder.bind(q4Queue()).to(generatorExchange()).with(GENERATOR_ROUTING_KEY);
     }
 }

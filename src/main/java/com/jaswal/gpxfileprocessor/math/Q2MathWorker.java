@@ -273,7 +273,11 @@ public class Q2MathWorker {
 
             CompletionFlags flags = jobRepository.markCalculationsCompleteAtomically(jobId);
             if (flags.validationComplete() && flags.calculationsComplete() && flags.enrichmentComplete()) {
-                System.out.println("Job " + jobId + ": Q2 won the completion race — all current stages done");
+                rabbitTemplate.convertAndSend(
+                        RabbitMQConfig.GENERATOR_EXCHANGE,
+                        RabbitMQConfig.GENERATOR_ROUTING_KEY,
+                        jobIdString
+                );
             }
 
         } catch (Exception e) {
