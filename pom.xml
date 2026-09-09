@@ -105,6 +105,14 @@
             <artifactId>jpx</artifactId>
             <version>3.2.1</version>
         </dependency>
+        <!-- AGPL v3 licensed — acceptable for this personal/portfolio project;
+             a commercial iText license would be required for closed-source use. -->
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>itext-core</artifactId>
+            <version>9.7.1</version>
+            <type>pom</type>
+        </dependency>
     </dependencies>
 
     <build>
