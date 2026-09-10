@@ -259,17 +259,10 @@ public class Q2MathWorker {
             route.setSimplifiedTrackpoints(simplifiedJson);
             routeRepository.save(route);
 
-            job.setDistanceKm(totalDistanceKm);
-            job.setElevationGainM(elevationGain);
-            job.setElevationLossM(elevationLoss);
-            job.setMaxElevationM(maxElevation);
-            job.setMinElevationM(minElevation);
-            job.setMovingTimeSeconds((int) Math.round(movingTime * 60));
-            job.setTotalTime((int) Math.round(totalTime * 60));
-            job.setPaceKmPerMin(paceKmPerMinute);
-            job.setDifficulty(difficulty.tier());
-            job.setDifficultyScore(difficulty.score());
-            jobRepository.save(job);
+            jobRepository.updateCalculationResults(
+                    jobId, totalDistanceKm, elevationGain, elevationLoss, maxElevation, minElevation,
+                    (int) Math.round(movingTime * 60), (int) Math.round(totalTime * 60), paceKmPerMinute,
+                    difficulty.tier().name(), difficulty.score());
 
             CompletionFlags flags = jobRepository.markCalculationsCompleteAtomically(jobId);
             if (flags.validationComplete() && flags.calculationsComplete() && flags.enrichmentComplete()) {

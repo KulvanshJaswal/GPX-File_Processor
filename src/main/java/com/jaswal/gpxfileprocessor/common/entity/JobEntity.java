@@ -28,13 +28,13 @@ public class JobEntity {
     @Column(name = "status", nullable = false)
     private JobStatus status;
 
-    @Column(name = "validation_complete", nullable = false, columnDefinition = "boolean default false")
+    @Column(name = "validation_complete", nullable = false, insertable = false, columnDefinition = "boolean default false")
     private Boolean validationComplete;
 
-    @Column(name = "calculations_complete", nullable = false, columnDefinition = "boolean default false")
+    @Column(name = "calculations_complete", nullable = false, insertable = false, columnDefinition = "boolean default false")
     private Boolean calculationsComplete;
 
-    @Column(name = "enrichment_complete", nullable = false, columnDefinition = "boolean default false")
+    @Column(name = "enrichment_complete", nullable = false, insertable = false, columnDefinition = "boolean default false")
     private Boolean enrichmentComplete;
 
     @Column(name = "start_lat")

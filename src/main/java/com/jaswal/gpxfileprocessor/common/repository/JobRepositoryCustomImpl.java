@@ -59,4 +59,52 @@ public class JobRepositoryCustomImpl implements JobRepositoryCustom {
         }
         return Optional.of(((Number) result.get(0)).intValue());
     }
+
+    @Override
+    @Transactional
+    public void updateElevationCorrection(Long id, Double maxElevation, Double minElevation, Double elevationGain, Double elevationLoss) {
+        em.createNativeQuery(
+                "UPDATE jobs SET max_elevation_m = :max, min_elevation_m = :min, " +
+                "elevation_gain_m = :gain, elevation_loss_m = :loss WHERE id = :id"
+        ).setParameter("max", maxElevation)
+                .setParameter("min", minElevation)
+                .setParameter("gain", elevationGain)
+                .setParameter("loss", elevationLoss)
+                .setParameter("id", id)
+                .executeUpdate();
+    }
+
+    @Override
+    @Transactional
+    public void updateWeatherData(Long id, String weatherJson) {
+        em.createNativeQuery("UPDATE jobs SET weather_data = CAST(:weatherJson AS jsonb) WHERE id = :id")
+                .setParameter("weatherJson", weatherJson)
+                .setParameter("id", id)
+                .executeUpdate();
+    }
+
+    @Override
+    @Transactional
+    public void updateCalculationResults(Long id, Double distanceKm, Double elevationGainM, Double elevationLossM,
+                                          Double maxElevationM, Double minElevationM, Integer movingTimeSeconds,
+                                          Integer totalTimeSeconds, Double paceKmPerMin, String difficulty, Double difficultyScore) {
+        em.createNativeQuery(
+                "UPDATE jobs SET distance_km = :distanceKm, elevation_gain_m = :elevationGainM, " +
+                "elevation_loss_m = :elevationLossM, max_elevation_m = :maxElevationM, min_elevation_m = :minElevationM, " +
+                "moving_time_seconds = :movingTimeSeconds, total_time_seconds = :totalTimeSeconds, " +
+                "pace_km_per_min = :paceKmPerMin, difficulty = :difficulty, difficulty_score = :difficultyScore " +
+                "WHERE id = :id"
+        ).setParameter("distanceKm", distanceKm)
+                .setParameter("elevationGainM", elevationGainM)
+                .setParameter("elevationLossM", elevationLossM)
+                .setParameter("maxElevationM", maxElevationM)
+                .setParameter("minElevationM", minElevationM)
+                .setParameter("movingTimeSeconds", movingTimeSeconds)
+                .setParameter("totalTimeSeconds", totalTimeSeconds)
+                .setParameter("paceKmPerMin", paceKmPerMin)
+                .setParameter("difficulty", difficulty)
+                .setParameter("difficultyScore", difficultyScore)
+                .setParameter("id", id)
+                .executeUpdate();
+    }
 }

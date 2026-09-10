@@ -64,15 +64,12 @@ public class Q3EnrichmentWorker {
                     .retrieve()
                     .body(String.class);
 
-            job.setWeatherData(weatherJson);
-            jobRepository.save(job);
+            jobRepository.updateWeatherData(jobId, weatherJson);
 
-            if (job.getMaxElevationM() == null) {
-                try {
-                    correctElevation(job, jobId);
-                } catch (ApiRateLimitExceededException e) {
-                    System.out.println(e.getMessage());
-                }
+            try {
+                correctElevation(job, jobId);
+            } catch (ApiRateLimitExceededException e) {
+                System.out.println(e.getMessage());
             }
 
             CompletionFlags flags = jobRepository.markEnrichmentCompleteAtomically(jobId);
@@ -102,6 +99,11 @@ public class Q3EnrichmentWorker {
                     .flatMap(Track::segments)
                     .flatMap(TrackSegment::points)
                     .toList();
+        }
+
+        boolean hasElevation = allPoints.stream().anyMatch(wp -> wp.getElevation().isPresent());
+        if (hasElevation) {
+            return;
         }
 
         int batchCount = (int) Math.ceil(allPoints.size() / 100.0);
@@ -167,11 +169,7 @@ public class Q3EnrichmentWorker {
             }
         }
 
-        job.setMaxElevationM(maxElevation);
-        job.setMinElevationM(minElevation);
-        job.setElevationGainM(elevationGain);
-        job.setElevationLossM(elevationLoss);
-        jobRepository.save(job);
+        jobRepository.updateElevationCorrection(jobId, maxElevation, minElevation, elevationGain, elevationLoss);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
