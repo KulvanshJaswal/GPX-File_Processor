@@ -5,18 +5,21 @@ import com.jaswal.gpxfileprocessor.common.config.RabbitMQConfig;
 import com.jaswal.gpxfileprocessor.common.entity.CompletionFlags;
 import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.exception.ApiRateLimitExceededException;
-import com.jaswal.gpxfileprocessor.common.exception.FileStorageException;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
+import com.jaswal.gpxfileprocessor.common.util.RetryBackoff;
 import io.jenetics.jpx.GPX;
 import io.jenetics.jpx.Track;
 import io.jenetics.jpx.TrackSegment;
 import io.jenetics.jpx.WayPoint;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -44,10 +47,18 @@ public class Q3EnrichmentWorker {
     private String bucketName;
 
     @RabbitListener(queues = RabbitMQConfig.Q3_QUEUE)
-    public void handleEnrichment(String jobIdString) {
+    public void handleEnrichment(
+            String jobIdString,
+            @Header(name = "x-retry-count", defaultValue = "0") Integer attemptCount
+            ) {
         Long jobId = Long.valueOf(jobIdString);
         JobEntity job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new RuntimeException("Job not found: " + jobId));
+
+        if (attemptCount >= 4) {
+            rabbitTemplate.convertAndSend("", RabbitMQConfig.DLQ3_QUEUE, jobIdString);
+            jobRepository.markJobFailed(jobId, "Job failed after " + attemptCount + " attempts in Q3 enrichment");
+        } else {
 
         try {
             String weatherJson = restClientBuilder.build()
@@ -82,7 +93,17 @@ public class Q3EnrichmentWorker {
             }
 
         } catch (Exception e) {
-            throw new FileStorageException("Q3 failed processing job " + jobIdString + ": " + e.getMessage(), e);
+            MessageProperties prop = new MessageProperties();
+            prop.setHeader("x-retry-count", attemptCount + 1);
+            prop.setHeader("x-delay", RetryBackoff.getDelayMillis(attemptCount));
+
+            Message message = new Message(jobIdString.getBytes(), prop);
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.DELAYED_RETRY_EXCHANGE,
+                    RabbitMQConfig.Q3_RETRY_ROUTING_KEY,
+                    message
+            );
+        }
         }
     }
 

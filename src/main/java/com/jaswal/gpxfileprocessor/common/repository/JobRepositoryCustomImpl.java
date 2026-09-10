@@ -107,4 +107,11 @@ public class JobRepositoryCustomImpl implements JobRepositoryCustom {
                 .setParameter("id", id)
                 .executeUpdate();
     }
+
+    @Override
+    @Transactional
+    public void markJobFailed(Long id, String errorMessage) {
+        em.createNativeQuery("UPDATE jobs SET status = 'FAILED', error_message = :errorMessage WHERE id = :id"
+        ).setParameter("errorMessage", errorMessage).setParameter("id", id).executeUpdate();
+    }
 }

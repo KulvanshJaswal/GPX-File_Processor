@@ -13,4 +13,5 @@ public interface JobRepositoryCustom {
     void updateCalculationResults(Long id, Double distanceKm, Double elevationGainM, Double elevationLossM,
                                    Double maxElevationM, Double minElevationM, Integer movingTimeSeconds,
                                    Integer totalTimeSeconds, Double paceKmPerMin, String difficulty, Double difficultyScore);
+    void markJobFailed(Long id, String errorMessage);
 }
