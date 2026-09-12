@@ -34,7 +34,7 @@ function App() {
     <HeroBackground>
       <main className="app-shell">
         <header className="app-header">
-          <span className="app-brand">🥾 Trailhead</span>
+          <span className="app-brand">🥾 Trail Report</span>
           <p className="app-tagline">Upload a hike, get a trail report</p>
         </header>
 
