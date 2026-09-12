@@ -2,9 +2,12 @@ package com.jaswal.gpxfileprocessor.common.config;
 
 import io.minio.MinioClient;
 import lombok.Getter;
+import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 @Getter
@@ -20,8 +23,14 @@ public class MinioConfig {
     private String endpoint;
 
     @Bean
-    public MinioClient minioClient() {
+    public MinioClient minioClient(){
+        OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS).build();
+
         return MinioClient.builder().endpoint(endpoint)
-                .credentials(accessKey, secretKey).build();
+                .credentials(accessKey, secretKey)
+                .httpClient(okHttpClient).build();
     }
 }
