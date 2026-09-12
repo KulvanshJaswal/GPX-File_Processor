@@ -226,7 +226,7 @@ public class Q2MathWorker {
 
                     double speedMetersPerSecond = elapsedSeconds > 0 ? distance / elapsedSeconds : 0.0;
 
-                    if (speedMetersPerSecond > 0.25) {
+                    if (speedMetersPerSecond > 0.15) {
                         movingTime += elapsedMinutes;
                     }
                     totalTime += elapsedMinutes;
@@ -254,7 +254,11 @@ public class Q2MathWorker {
             }
 
             double totalDistanceKm = totalDistanceMeters / 1000.0;
-            double paceMinPerKm = totalDistanceKm > 0 ? movingTime / totalDistanceKm : 0.0;
+            double paceNonTime = totalDistanceKm > 0 ? movingTime / totalDistanceKm : 0.0;
+            int minutes = (int) paceNonTime;
+            double seconds = ((paceNonTime - minutes) * 0.6);
+
+            double pace = Math.round((minutes + seconds) * 100) / 100.00;
 
             //Difficulty Calc
             DifficultyResult difficulty = calculateDifficulty(elevationGain, totalDistanceKm);
@@ -273,7 +277,7 @@ public class Q2MathWorker {
 
             jobRepository.updateCalculationResults(
                     jobId, totalDistanceKm, elevationGain, elevationLoss, maxElevation, minElevation,
-                    (int) Math.round(movingTime * 60), (int) Math.round(totalTime * 60), paceMinPerKm,
+                    (int) Math.round(movingTime * 60), (int) Math.round(totalTime * 60), pace,
                     difficulty.tier().name(), difficulty.score());
 
             CompletionFlags flags = jobRepository.markCalculationsCompleteAtomically(jobId);
