@@ -118,6 +118,11 @@
             <artifactId>jfreechart</artifactId>
             <version>1.5.6</version>
         </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.54.14</version>
+        </dependency>
     </dependencies>
 
     <build>

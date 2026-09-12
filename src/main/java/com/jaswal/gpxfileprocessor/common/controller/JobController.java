@@ -2,10 +2,8 @@ package com.jaswal.gpxfileprocessor.common.controller;
 
 import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
+import com.jaswal.gpxfileprocessor.common.storage.FileStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,10 +21,7 @@ public class JobController {
     private JobRepository jobRepository;
 
     @Autowired
-    private MinioClient minioClient;
-
-    @Value("${minio.bucket-name}")
-    private String bucketName;
+    private FileStorageService fileStorageService;
 
     @GetMapping("/jobs/{id}")
     public ResponseEntity<?> getJob(@PathVariable Long id) {
@@ -48,8 +43,7 @@ public class JobController {
         if (job == null || job.getPdfPath() == null) {
             return ResponseEntity.notFound().build();
         }
-        try (InputStream in = minioClient.getObject(GetObjectArgs.builder()
-                .bucket(bucketName).object(job.getPdfPath()).build())) {
+        try (InputStream in = fileStorageService.download(job.getPdfPath())) {
             byte[] bytes = in.readAllBytes();
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + job.getPdfPath() + "\"")

@@ -6,12 +6,10 @@ import com.jaswal.gpxfileprocessor.common.entity.JobStatus;
 import com.jaswal.gpxfileprocessor.common.exception.FileStorageException;
 import com.jaswal.gpxfileprocessor.common.exception.InvalidGpxFileException;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
+import com.jaswal.gpxfileprocessor.common.storage.FileStorageService;
 import lombok.Getter;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,10 +22,7 @@ public class UploadService {
     private final JobRepository jobRepository;
 
     @Autowired
-    private MinioClient minioClient;
-
-    @Value("${minio.bucket-name}")
-    private String bucketName;
+    private FileStorageService fileStorageService;
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
@@ -52,20 +47,13 @@ public class UploadService {
         }
     }
 
-    public String saveToMinio(MultipartFile file) {
+    public String storeFile(MultipartFile file) {
         String objectName = UUID.randomUUID().toString().substring(0,8) + "_" + file.getOriginalFilename();
 
-        try(InputStream inputStream = file.getInputStream()){
-            PutObjectArgs putObjectArgs = PutObjectArgs.builder()
-                    .bucket(bucketName)
-                    .object(objectName)
-                    .stream(inputStream, file.getSize(), -1)
-                    .contentType(file.getContentType())
-                    .build();
-
-            minioClient.putObject(putObjectArgs);
+        try (InputStream inputStream = file.getInputStream()) {
+            fileStorageService.upload(objectName, inputStream, file.getSize(), file.getContentType());
         } catch (Exception e) {
-            throw new FileStorageException("Failed to upload GPX file to MinIO storage: " + e.getMessage(), e);
+            throw new FileStorageException("Failed to upload GPX file to storage: " + e.getMessage(), e);
         }
 
         return objectName;

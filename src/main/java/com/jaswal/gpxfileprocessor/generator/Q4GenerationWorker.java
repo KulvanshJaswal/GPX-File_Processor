@@ -19,15 +19,13 @@ import com.jaswal.gpxfileprocessor.common.config.RabbitMQConfig;
 import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.entity.JobStatus;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
+import com.jaswal.gpxfileprocessor.common.storage.FileStorageService;
 import com.jaswal.gpxfileprocessor.common.util.RetryBackoff;
 import io.jenetics.jpx.GPX;
 import io.jenetics.jpx.Metadata;
 import io.jenetics.jpx.Track;
 import io.jenetics.jpx.TrackSegment;
 import io.jenetics.jpx.WayPoint;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.XYPlot;
@@ -99,16 +97,13 @@ public class Q4GenerationWorker {
     private JobRepository jobRepository;
 
     @Autowired
-    private MinioClient minioClient;
+    private FileStorageService fileStorageService;
 
     @Autowired
     private RestClient.Builder restClientBuilder;
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
-
-    @Value("${minio.bucket-name}")
-    private String bucketName;
 
     @RabbitListener(queues = RabbitMQConfig.Q4_QUEUE, concurrency = "1-2")
     public void pdfGeneration(
@@ -153,12 +148,7 @@ public class Q4GenerationWorker {
             String objectName = jobId + "_report.pdf";
 
             try (InputStream in = new ByteArrayInputStream(bytes)) {
-                minioClient.putObject(PutObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(objectName)
-                        .stream(in, bytes.length, -1)
-                        .contentType("application/pdf")
-                        .build());
+                fileStorageService.upload(objectName, in, bytes.length, "application/pdf");
             }
 
             job.setPdfPath(objectName);
@@ -182,11 +172,7 @@ public class Q4GenerationWorker {
     }
 
     private List<WayPoint> fetchTrackpoints(JobEntity job) throws Exception {
-        try (InputStream inputStream = minioClient.getObject(
-                GetObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(job.getName())
-                        .build())) {
+        try (InputStream inputStream = fileStorageService.download(job.getName())) {
 
             GPX gpx = GPX.Reader.DEFAULT.read(inputStream);
             return gpx.tracks()
@@ -268,11 +254,7 @@ public class Q4GenerationWorker {
     // object's key with its "{8-hex-chars}_" prefix (added by UploadService) stripped,
     // rather than showing the raw MinIO key in the report.
     private String resolveTrailName(JobEntity job) {
-        try (InputStream inputStream = minioClient.getObject(
-                GetObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(job.getName())
-                        .build())) {
+        try (InputStream inputStream = fileStorageService.download(job.getName())) {
 
             GPX gpx = GPX.Reader.DEFAULT.read(inputStream);
             Optional<String> name = gpx.getMetadata().flatMap(Metadata::getName)

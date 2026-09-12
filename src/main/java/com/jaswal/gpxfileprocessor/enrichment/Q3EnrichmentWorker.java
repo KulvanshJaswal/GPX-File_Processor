@@ -6,19 +6,17 @@ import com.jaswal.gpxfileprocessor.common.entity.CompletionFlags;
 import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.exception.ApiRateLimitExceededException;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
+import com.jaswal.gpxfileprocessor.common.storage.FileStorageService;
 import com.jaswal.gpxfileprocessor.common.util.RetryBackoff;
 import io.jenetics.jpx.GPX;
 import io.jenetics.jpx.Track;
 import io.jenetics.jpx.TrackSegment;
 import io.jenetics.jpx.WayPoint;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -45,10 +43,7 @@ public class Q3EnrichmentWorker {
     private RabbitTemplate rabbitTemplate;
 
     @Autowired
-    private MinioClient minioClient;
-
-    @Value("${minio.bucket-name}")
-    private String bucketName;
+    private FileStorageService fileStorageService;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -130,11 +125,7 @@ public class Q3EnrichmentWorker {
 
     private void correctElevation(JobEntity job, Long jobId) throws Exception {
         List<WayPoint> allPoints;
-        try (InputStream inputStream = minioClient.getObject(
-                GetObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(job.getName())
-                        .build())) {
+        try (InputStream inputStream = fileStorageService.download(job.getName())) {
 
             GPX gpx = GPX.Reader.DEFAULT.read(inputStream);
             allPoints = gpx.tracks()

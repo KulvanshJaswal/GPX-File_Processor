@@ -8,19 +8,17 @@ import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.entity.RouteEntity;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
 import com.jaswal.gpxfileprocessor.common.repository.RouteRepository;
+import com.jaswal.gpxfileprocessor.common.storage.FileStorageService;
 import com.jaswal.gpxfileprocessor.common.util.RetryBackoff;
 import io.jenetics.jpx.GPX;
 import io.jenetics.jpx.Track;
 import io.jenetics.jpx.TrackSegment;
 import io.jenetics.jpx.WayPoint;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
@@ -43,12 +41,9 @@ public class Q2MathWorker {
     @Autowired
     private RouteRepository routeRepository;
     @Autowired
-    private MinioClient minioClient;
+    private FileStorageService fileStorageService;
     @Autowired
     private RabbitTemplate rabbitTemplate;
-
-    @Value("${minio.bucket-name}")
-    private String bucketName;
 
     private double calculateHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
         double dLat = Math.toRadians(lat2 - lat1);
@@ -168,11 +163,7 @@ public class Q2MathWorker {
             jobRepository.markJobFailed(jobId, "Job failed after " + attemptCount + " attempts in Q2 math");
         } else {
 
-        try (InputStream inputStream = minioClient.getObject(
-                GetObjectArgs.builder()
-                        .bucket(bucketName)
-                        .object(job.getName())
-                        .build())) {
+        try (InputStream inputStream = fileStorageService.download(job.getName())) {
 
             GPX gpx = GPX.Reader.DEFAULT.read(inputStream);
 

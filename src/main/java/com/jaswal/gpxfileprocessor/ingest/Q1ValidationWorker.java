@@ -5,6 +5,7 @@ import com.jaswal.gpxfileprocessor.common.entity.JobEntity;
 import com.jaswal.gpxfileprocessor.common.exception.FileStorageException;
 import com.jaswal.gpxfileprocessor.common.exception.InvalidGpxFileException;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
+import com.jaswal.gpxfileprocessor.common.storage.FileStorageService;
 import com.jaswal.gpxfileprocessor.common.util.RetryBackoff;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
@@ -12,12 +13,9 @@ import io.jenetics.jpx.GPX;
 import io.jenetics.jpx.Track;
 import io.jenetics.jpx.TrackSegment;
 import io.jenetics.jpx.WayPoint;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
@@ -33,13 +31,10 @@ public class Q1ValidationWorker {
     private JobRepository jobRepository;
 
     @Autowired
-    private MinioClient minioClient;
+    private FileStorageService fileStorageService;
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
-
-    @Value("${minio.bucket-name}")
-    private String bucketName;
 
     @RabbitListener(queues = Q1_QUEUE, concurrency = "1-2")
     public void handleIngest(
@@ -55,11 +50,7 @@ public class Q1ValidationWorker {
             jobRepository.markJobFailed(jobId, "Job failed after " + attemptCount + " attempts in Q1 validation");
         } else {
 
-            try (InputStream inputStream = minioClient.getObject(
-                    GetObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(job.getName())
-                            .build())) {
+            try (InputStream inputStream = fileStorageService.download(job.getName())) {
 
                 GPX gpx = GPX.Reader.DEFAULT.read(inputStream);
 

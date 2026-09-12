@@ -24,7 +24,7 @@ public class UploadController {
     public ResponseEntity<?> upload(@RequestParam MultipartFile file) {
         try {
             uploadService.validateFile(file);
-            String objectName = uploadService.saveToMinio(file);
+            String objectName = uploadService.storeFile(file);
             JobEntity job = uploadService.createJob(objectName);
 
             return ResponseEntity.status(HttpStatus.ACCEPTED)
