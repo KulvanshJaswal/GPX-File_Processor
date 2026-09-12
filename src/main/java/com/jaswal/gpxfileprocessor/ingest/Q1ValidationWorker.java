@@ -41,7 +41,7 @@ public class Q1ValidationWorker {
     @Value("${minio.bucket-name}")
     private String bucketName;
 
-    @RabbitListener(queues = Q1_QUEUE)
+    @RabbitListener(queues = Q1_QUEUE, concurrency = "1-2")
     public void handleIngest(
             String jobIdString,
             @Header(name = "x-retry-count", defaultValue = "0") Integer attemptCount

@@ -152,7 +152,7 @@ public class Q2MathWorker {
         }
     }
 
-    @RabbitListener(queues = RabbitMQConfig.Q2_QUEUE)
+    @RabbitListener(queues = RabbitMQConfig.Q2_QUEUE, concurrency = "1-4")
     public void handleMath(
             String jobIdString,
             @Header(name = "x-retry-count", defaultValue = "0") Integer attemptCount
@@ -226,7 +226,7 @@ public class Q2MathWorker {
 
                     double speedMetersPerSecond = elapsedSeconds > 0 ? distance / elapsedSeconds : 0.0;
 
-                    if (speedMetersPerSecond > 0.5) {
+                    if (speedMetersPerSecond > 0.25) {
                         movingTime += elapsedMinutes;
                     }
                     totalTime += elapsedMinutes;
@@ -254,7 +254,7 @@ public class Q2MathWorker {
             }
 
             double totalDistanceKm = totalDistanceMeters / 1000.0;
-            double paceKmPerMinute = movingTime > 0 ? totalDistanceKm / movingTime : 0.0;
+            double paceMinPerKm = totalDistanceKm > 0 ? movingTime / totalDistanceKm : 0.0;
 
             //Difficulty Calc
             DifficultyResult difficulty = calculateDifficulty(elevationGain, totalDistanceKm);
@@ -273,7 +273,7 @@ public class Q2MathWorker {
 
             jobRepository.updateCalculationResults(
                     jobId, totalDistanceKm, elevationGain, elevationLoss, maxElevation, minElevation,
-                    (int) Math.round(movingTime * 60), (int) Math.round(totalTime * 60), paceKmPerMinute,
+                    (int) Math.round(movingTime * 60), (int) Math.round(totalTime * 60), paceMinPerKm,
                     difficulty.tier().name(), difficulty.score());
 
             CompletionFlags flags = jobRepository.markCalculationsCompleteAtomically(jobId);

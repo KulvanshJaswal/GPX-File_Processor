@@ -21,6 +21,7 @@ import com.jaswal.gpxfileprocessor.common.entity.JobStatus;
 import com.jaswal.gpxfileprocessor.common.repository.JobRepository;
 import com.jaswal.gpxfileprocessor.common.util.RetryBackoff;
 import io.jenetics.jpx.GPX;
+import io.jenetics.jpx.Metadata;
 import io.jenetics.jpx.Track;
 import io.jenetics.jpx.TrackSegment;
 import io.jenetics.jpx.WayPoint;
@@ -50,8 +51,10 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import javax.imageio.ImageIO;
 
 @Component
@@ -63,6 +66,8 @@ public class Q4GenerationWorker {
     private static final int MAX_TILES = 9; // 3x3 grid budget — keeps OSM usage light
     private static final String OSM_USER_AGENT =
             "GPX-File-Processor/1.0 (portfolio project; github.com/KulvanshJaswal/gpx-file-processor)";
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("MMMM d, yyyy, h:mm a", java.util.Locale.US);
 
     // Hiking/outdoors palette — PDF layout (iText) colors
     private static final DeviceRgb PDF_DARK_GREEN = new DeviceRgb(45, 74, 42);
@@ -105,7 +110,7 @@ public class Q4GenerationWorker {
     @Value("${minio.bucket-name}")
     private String bucketName;
 
-    @RabbitListener(queues = RabbitMQConfig.Q4_QUEUE)
+    @RabbitListener(queues = RabbitMQConfig.Q4_QUEUE, concurrency = "1-2")
     public void pdfGeneration(
             String jobIdString,
             @Header(name = "x-retry-count", defaultValue = "0") Integer attemptCount
@@ -120,12 +125,14 @@ public class Q4GenerationWorker {
         } else {
 
         try {
+            String trailName = resolveTrailName(job);
+
             ByteArrayOutputStream pdfBytes = new ByteArrayOutputStream();
             try (PdfWriter writer = new PdfWriter(pdfBytes);
                  PdfDocument pdfDoc = new PdfDocument(writer);
                  Document document = new Document(pdfDoc)) {
 
-                addMetadataSection(document, job);
+                addMetadataSection(document, job, trailName);
                 addStatsTable(document, job);
 
                 List<DailyWeather> weather = parseWeather(job.getWeatherData());
@@ -235,10 +242,10 @@ public class Q4GenerationWorker {
         }
     }
 
-    private void addMetadataSection(Document document, JobEntity job) {
+    private void addMetadataSection(Document document, JobEntity job, String trailName) {
         Table banner = new Table(UnitValue.createPercentArray(new float[]{1})).useAllAvailableWidth();
         banner.addCell(new Cell()
-                .add(new Paragraph(job.getName())
+                .add(new Paragraph(trailName)
                         .setFontColor(PDF_WHITE)
                         .setFontSize(22)
                         .simulateBold()
@@ -248,12 +255,43 @@ public class Q4GenerationWorker {
                 .setBorder(Border.NO_BORDER));
         document.add(banner);
 
-        document.add(new Paragraph("Date processed: " + job.getCreatedAt())
+        document.add(new Paragraph("Date processed: " + job.getCreatedAt().format(DATE_FORMATTER))
                 .setFontColor(PDF_TEXT_DARK)
                 .setMarginTop(10));
-        document.add(new Paragraph("Difficulty: " + job.getDifficulty() + " (score: " + job.getDifficultyScore() + ")")
+        document.add(new Paragraph("Difficulty: " + job.getDifficulty() + " (score: " + String.format("%.1f", job.getDifficultyScore()) + ")")
                 .setFontColor(PDF_ACCENT_BROWN)
                 .simulateBold());
+    }
+
+    // GPX <name> can live at the file (metadata) level or the track level — AllTrails
+    // exports typically only set the track-level one. Falls back to the uploaded
+    // object's key with its "{8-hex-chars}_" prefix (added by UploadService) stripped,
+    // rather than showing the raw MinIO key in the report.
+    private String resolveTrailName(JobEntity job) {
+        try (InputStream inputStream = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(job.getName())
+                        .build())) {
+
+            GPX gpx = GPX.Reader.DEFAULT.read(inputStream);
+            Optional<String> name = gpx.getMetadata().flatMap(Metadata::getName)
+                    .or(() -> gpx.tracks().findFirst().flatMap(Track::getName));
+            if (name.isPresent() && !name.get().isBlank()) {
+                return name.get();
+            }
+        } catch (Exception e) {
+            System.out.println("Could not resolve trail name from GPX for job " + job.getId()
+                    + ", falling back to filename: " + e.getMessage());
+        }
+        return stripUploadPrefix(job.getName());
+    }
+
+    private String stripUploadPrefix(String objectKey) {
+        if (objectKey != null && objectKey.length() > 9 && objectKey.charAt(8) == '_') {
+            return objectKey.substring(9);
+        }
+        return objectKey;
     }
 
     private void addSectionHeader(Document document, String title) {
@@ -271,18 +309,18 @@ public class Q4GenerationWorker {
         Table table = new Table(UnitValue.createPercentArray(new float[]{1, 1})).useAllAvailableWidth();
         table.setMarginTop(12);
         int row = 0;
-        addStatRow(table, "Distance (km)", formatStat(job.getDistanceKm()), row++);
-        addStatRow(table, "Elevation gain (m)", formatStat(job.getElevationGainM()), row++);
-        addStatRow(table, "Elevation loss (m)", formatStat(job.getElevationLossM()), row++);
-        addStatRow(table, "Max elevation (m)", formatStat(job.getMaxElevationM()), row++);
-        addStatRow(table, "Min elevation (m)", formatStat(job.getMinElevationM()), row++);
+        addStatRow(table, "Distance (km)", formatStat(job.getDistanceKm(), 2), row++);
+        addStatRow(table, "Elevation gain (m)", formatStat(job.getElevationGainM(), 1), row++);
+        addStatRow(table, "Elevation loss (m)", formatStat(job.getElevationLossM(), 1), row++);
+        addStatRow(table, "Max elevation (m)", formatStat(job.getMaxElevationM(), 1), row++);
+        addStatRow(table, "Min elevation (m)", formatStat(job.getMinElevationM(), 1), row++);
         addStatRow(table, "Moving time", formatDuration(job.getMovingTimeSeconds()), row++);
-        addStatRow(table, "Pace (km/min)", formatStat(job.getPaceKmPerMin()), row++);
+        addStatRow(table, "Pace (min/km)", formatStat(job.getPaceKmPerMin(), 2), row++);
         document.add(table);
     }
 
-    private String formatStat(Double value) {
-        return value == null ? "Not available" : String.valueOf(value);
+    private String formatStat(Double value, int decimals) {
+        return value == null ? "Not available" : String.format("%." + decimals + "f", value);
     }
 
     private void addStatRow(Table table, String label, String value, int rowIndex) {
@@ -326,13 +364,13 @@ public class Q4GenerationWorker {
             DeviceRgb rowColor = row % 2 == 0 ? PDF_CREAM : PDF_WHITE;
             addWeatherCell(table, day.date(), rowColor);
             addWeatherCell(table, String.valueOf(day.weatherCode()), rowColor);
-            addWeatherCell(table, day.tempMax() + "°", rowColor);
-            addWeatherCell(table, day.tempMin() + "°", rowColor);
-            addWeatherCell(table, day.precipitationSum() + "mm", rowColor);
-            addWeatherCell(table, day.snowfallSum() + "cm", rowColor);
+            addWeatherCell(table, String.format("%.1f°", day.tempMax()), rowColor);
+            addWeatherCell(table, String.format("%.1f°", day.tempMin()), rowColor);
+            addWeatherCell(table, String.format("%.1fmm", day.precipitationSum()), rowColor);
+            addWeatherCell(table, String.format("%.1fcm", day.snowfallSum()), rowColor);
             addWeatherCell(table, day.sunrise(), rowColor);
             addWeatherCell(table, day.sunset(), rowColor);
-            addWeatherCell(table, day.windSpeedMax() + " km/h", rowColor);
+            addWeatherCell(table, String.format("%.1f km/h", day.windSpeedMax()), rowColor);
             row++;
         }
 

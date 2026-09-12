@@ -22,8 +22,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -46,7 +50,9 @@ public class Q3EnrichmentWorker {
     @Value("${minio.bucket-name}")
     private String bucketName;
 
-    @RabbitListener(queues = RabbitMQConfig.Q3_QUEUE)
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    @RabbitListener(queues = RabbitMQConfig.Q3_QUEUE, concurrency = "1-4")
     public void handleEnrichment(
             String jobIdString,
             @Header(name = "x-retry-count", defaultValue = "0") Integer attemptCount
@@ -75,7 +81,22 @@ public class Q3EnrichmentWorker {
                     .retrieve()
                     .body(String.class);
 
-            jobRepository.updateWeatherData(jobId, weatherJson);
+            JsonNode root = OBJECT_MAPPER.readTree(weatherJson);
+            JsonNode dailyNode = root.path("daily");
+            ArrayNode sunriseArray = (ArrayNode) dailyNode.path("sunrise");
+            ArrayNode sunsetArray = (ArrayNode) dailyNode.path("sunset");
+
+            for (int i = 0; i < sunriseArray.size(); i++) {
+                LocalDateTime sunrise = LocalDateTime.parse(sunriseArray.get(i).asText());
+                sunriseArray.set(i, sunrise.toLocalTime().toString());
+
+                LocalDateTime sunset = LocalDateTime.parse(sunsetArray.get(i).asText());
+                sunsetArray.set(i, sunset.toLocalTime().toString());
+            }
+
+            String cleanedWeatherJson = OBJECT_MAPPER.writeValueAsString(root);
+
+            jobRepository.updateWeatherData(jobId, cleanedWeatherJson);
 
             try {
                 correctElevation(job, jobId);
