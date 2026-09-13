@@ -1,0 +1,44 @@
+.hero-background {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  /* Placeholder sky gradient — swap for a real hero photo by replacing this
+     background with e.g. background: url('/hero-photo.jpg') center/cover;
+     and removing .hero-mountains below. */
+  background: linear-gradient(180deg, #cfe0d8 0%, #eef2ea 45%, var(--color-cream) 100%);
+}
+
+.hero-mountains {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-mountains::before,
+.hero-mountains::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.hero-mountains::before {
+  height: 42vh;
+  background: #6b8f5e;
+  opacity: 0.5;
+  clip-path: polygon(
+    0% 65%, 14% 32%, 29% 58%, 47% 18%, 64% 52%, 81% 14%, 100% 46%, 100% 100%, 0% 100%
+  );
+}
+
+.hero-mountains::after {
+  height: 30vh;
+  background: var(--color-dark-green);
+  opacity: 0.85;
+  clip-path: polygon(
+    0% 72%, 20% 34%, 38% 66%, 55% 24%, 71% 60%, 88% 20%, 100% 55%, 100% 100%, 0% 100%
+  );
+}

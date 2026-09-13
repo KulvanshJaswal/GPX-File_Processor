@@ -37,3 +37,7 @@ build/
 application-local.properties
 application-local.yml
 application-secrets.properties
+application-prod.properties
+
+#testing outputs
+test-output

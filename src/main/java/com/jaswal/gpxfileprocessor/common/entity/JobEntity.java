@@ -19,7 +19,7 @@ public class JobEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private Integer id;
+    private Long id;
 
     @Column(name = "name", nullable = false)
     private String name;
@@ -28,14 +28,20 @@ public class JobEntity {
     @Column(name = "status", nullable = false)
     private JobStatus status;
 
-    @Column(name = "validation_complete", nullable = false, columnDefinition = "boolean default false")
+    @Column(name = "validation_complete", nullable = false, insertable = false, columnDefinition = "boolean default false")
     private Boolean validationComplete;
 
-    @Column(name = "calculations_complete", nullable = false, columnDefinition = "boolean default false")
+    @Column(name = "calculations_complete", nullable = false, insertable = false, columnDefinition = "boolean default false")
     private Boolean calculationsComplete;
 
-    @Column(name = "enrichment_complete", nullable = false, columnDefinition = "boolean default false")
+    @Column(name = "enrichment_complete", nullable = false, insertable = false, columnDefinition = "boolean default false")
     private Boolean enrichmentComplete;
+
+    @Column(name = "start_lat")
+    private double startLat;
+
+    @Column(name = "start_lon")
+    private double startLon;
 
     @Column(name = "distance_km")
     private Double distanceKm;
@@ -54,6 +60,9 @@ public class JobEntity {
 
     @Column(name = "moving_time_seconds")
     private Integer movingTimeSeconds;
+
+    @Column(name = "total_time_seconds")
+    private int totalTime;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty")
@@ -74,6 +83,9 @@ public class JobEntity {
 
     @Column(name = "error_message")
     private String errorMessage;
+
+    @Column(name = "pace_km_per_min")
+    private Double paceKmPerMin;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
