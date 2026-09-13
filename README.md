@@ -1,6 +1,6 @@
 # GPX File Processor
 
-A distributed, asynchronous GPX file processing system. Upload a GPX file from a hike and get back a PDF report with distance, elevation, difficulty, a 7-day weather forecast, an elevation profile chart, and a grade-colored trail map — processed through a Spring Boot + RabbitMQ job pipeline rather than a single blocking request, and deployed across five separate AWS services.
+A distributed, asynchronous GPX file processing system. Upload a GPX file from a hike and get back a PDF report with distance, elevation, difficulty, a 7-day weather forecast, an elevation profile chart, and a grade-colored trail map — processed through a Spring Boot + RabbitMQ job pipeline rather than a single blocking request, and deployed across AWS.
 
 Built as a portfolio project to demonstrate distributed systems design, async processing, real file-format parsing, race-condition-safe coordination between concurrent workers, and system design thinking — not just a CRUD app with a database.
 
@@ -30,6 +30,7 @@ Each worker stage is an independent RabbitMQ consumer — none of them call each
 | Message broker | Self-hosted RabbitMQ on a Lightsail VM | Amazon MQ's cheapest RabbitMQ-compatible instance type (`mq.m7g.medium`) runs ~$85/month for a workload this light — self-hosting the same Docker image used locally on a $7/month Lightsail instance was the more cost-conscious call, at the price of managing the broker's own uptime instead of AWS doing it |
 | File storage | S3 | swapped in for local MinIO via a `FileStorageService` interface, selected per Spring profile — no code duplication between local and prod |
 | Backend | Elastic Beanstalk (single instance, no load balancer) | an EC2 instance profile grants it scoped IAM permissions to the S3 bucket — no long-lived access keys anywhere in the app |
+| HTTPS for the backend | CloudFront, in front of Beanstalk | a single-instance Beanstalk environment has no load balancer, so it can't terminate TLS itself; CloudFront sits in front of it purely to add HTTPS (required once the frontend moved to HTTPS-only Amplify hosting — browsers block a secure page from calling an insecure API as "mixed content") without paying for an Application Load Balancer |
 | Frontend | Amplify | auto-deploys from the `frontend/` subdirectory on push to `main` |
 
 Each Beanstalk worker's `@RabbitListener` concurrency is tuned to where the actual bottleneck sits, not applied uniformly — Q2 and Q3 do the heaviest work (RDP recursion, paced external API calls) and get more concurrent consumers than Q1 (fast parsing) or Q4 (one message per completed job, not per fan-out).
@@ -46,7 +47,7 @@ Each Beanstalk worker's `@RabbitListener` concurrency is tuned to where the actu
 | PDF generation | iText, with JFreeChart for the elevation profile |
 | External APIs | Open-Meteo (weather), OpenTopoData (elevation correction) |
 | Frontend | React + Vite, deployed on Amplify |
-| Infra | Docker Compose (local), RDS / Lightsail / S3 / Elastic Beanstalk / Amplify (prod) |
+| Infra | Docker Compose (local), RDS / Lightsail / S3 / Elastic Beanstalk / CloudFront / Amplify (prod) |
 
 ## Key design decisions
 
@@ -59,6 +60,7 @@ Each Beanstalk worker's `@RabbitListener` concurrency is tuned to where the actu
 - **Fail-fast vs. retry-worthy failures are categorized by exception type, not by stage** — `InvalidGpxFileException` always means bad input: `400`, no retry, never touches a queue. `FileStorageException` always means a transient infrastructure failure: retried with exponential backoff, eventually dead-lettered if it never recovers. Every worker follows the same rule regardless of what it's doing when the failure happens.
 - **Every write to a row another worker might be concurrently modifying is a narrow, targeted `UPDATE`, never a whole-object `save()`** — a whole-entity save silently overwrites every column with whatever stale snapshot the calling worker fetched at the start of its own run, clobbering a concurrent writer's real results. This surfaced as a real bug during testing (Q3's elevation correction was overwriting Q2's already-committed math results) and was fixed by replacing it with column-scoped native updates everywhere the same pattern existed.
 - **Worker concurrency is scaled to where the bottleneck actually is, not applied uniformly** — giving every stage the same number of concurrent consumers would just move the backlog downstream faster if the slow stages aren't the ones that scale.
+- **CloudFront in front of a single-instance Beanstalk environment, instead of switching to a load-balanced environment** — HTTPS was needed once the frontend moved to Amplify (HTTPS-only), but an Application Load Balancer costs ~$16-22/month just to exist. CloudFront adds HTTPS termination in front of the existing plain-HTTP origin for a fraction of the cost, without changing anything about how Beanstalk itself is deployed.
 
 ## Project structure
 
@@ -106,7 +108,7 @@ npm run dev
 - [x] DLX/DLQ error handling with escalating backoff retry
 - [x] Elevation profile chart, grade-colored map overlay, hiking-themed PDF styling
 - [x] React frontend (drag-and-drop upload, polling, results/failure views)
-- [x] Deployed on AWS (RDS, self-hosted RabbitMQ on Lightsail, S3, Elastic Beanstalk, Amplify)
+- [x] Deployed on AWS (RDS, self-hosted RabbitMQ on Lightsail, S3, Elastic Beanstalk, CloudFront, Amplify)
 - [ ] Custom domain
 - [ ] Trail library with fingerprint-based duplicate detection (Phase 2)
 - [ ] User accounts + upload history (Phase 3)
